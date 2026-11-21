@@ -2,13 +2,14 @@ export const auditViewTemplate = `
 <div class="card" v-show="tab===5">
   <h2>审计流水</h2>
   <table>
-    <thead><tr><th>时间</th><th>人</th><th>动作</th><th>目标</th></tr></thead>
+    <thead><tr><th>时间</th><th>人</th><th>动作</th><th>目标</th><th>载荷</th></tr></thead>
     <tbody>
       <tr v-for="a in audits.slice(0,20)" :key="a.id">
         <td>{{a.created_at}}</td>
         <td>{{a.actor}}</td>
         <td>{{a.action}}</td>
         <td>{{a.target}}</td>
+        <td class="muted">{{a.payload}}</td>
       </tr>
     </tbody>
   </table>

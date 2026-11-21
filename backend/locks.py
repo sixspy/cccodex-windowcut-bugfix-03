@@ -17,37 +17,46 @@ class LockIn(BaseModel):
     action: str = "acquire"
 
 
-def try_acquire(conn, lock_key: str, holder: str) -> bool:
+def record_contention(conn, lock_key: str, holder: str, detail: str) -> None:
+    """争用留痕唯一写法：锁竞争与状态位竞争都经这里落 contention_log。"""
     now = datetime.now().isoformat(timespec="seconds")
-    row = conn.execute(
-        "SELECT holder FROM window_locks WHERE lock_key=?", (lock_key,)
-    ).fetchone()
-    if row is None:
-        conn.execute(
-            "INSERT INTO window_locks(lock_key,holder,acquired_at) VALUES (?,?,?)",
-            (lock_key, holder, now),
-        )
-        return True
-    if row["holder"] == holder:
-        return True
     conn.execute(
         """INSERT INTO contention_log(lock_key,actor,action,detail,created_at)
            VALUES (?,?,?,?,?)""",
-        (lock_key, holder, "争用", f"持有者={row['holder']}", now),
+        (lock_key, holder, "争用", detail, now),
+    )
+
+
+def try_acquire(conn, lock_key: str, holder: str) -> bool:
+    """写优先占锁：INSERT OR IGNORE 先取得写锁，再读持有者，避免读后写竞态。"""
+    now = datetime.now().isoformat(timespec="seconds")
+    conn.execute(
+        "INSERT OR IGNORE INTO window_locks(lock_key,holder,acquired_at) VALUES (?,?,?)",
+        (lock_key, holder, now),
+    )
+    row = conn.execute(
+        "SELECT holder FROM window_locks WHERE lock_key=?", (lock_key,)
+    ).fetchone()
+    if row is not None and row["holder"] == holder:
+        return True
+    record_contention(
+        conn, lock_key, holder, f"持有者={row['holder'] if row else '无'}"
     )
     return False
 
 
 def release(conn, lock_key: str, holder: str) -> None:
-    # BUGFIX-03 埋雷：关窗流程释锁过早可掩盖未提交状态
+    """只允许持有者释锁：后到者/过期流程不得抹掉先到者的窗锁。"""
     conn.execute(
-        "DELETE FROM window_locks WHERE lock_key=?",
-        (lock_key,),
+        "DELETE FROM window_locks WHERE lock_key=? AND holder=?",
+        (lock_key, holder),
     )
 
 
 def require_lock(conn, lock_key: str, holder: str) -> None:
     if not try_acquire(conn, lock_key, holder):
+        # 争用是既成事实，必须独立落库，不能随 409 异常回滚
+        conn.commit()
         raise HTTPException(409, "争用：后到只记争用，不写业务")
 
 

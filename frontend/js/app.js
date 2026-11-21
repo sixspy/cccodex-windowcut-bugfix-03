@@ -132,7 +132,15 @@ createApp({
     async function closeWin(id) {
       actionErr.value = "";
       const r = await api.post("/api/windows/" + id + "/close", {});
-      if (r && !r.ok) actionErr.value = r.body.detail || "关窗失败";
+      if (!r) return;
+      if (!r.ok) {
+        actionErr.value = r.body.detail || "关窗失败";
+      } else if (r.body.already) {
+        actionErr.value = "窗口已关账，沿用令牌 " + r.body.seal_token;
+      } else {
+        actionErr.value =
+          "关账成功：" + r.body.status + " · 令牌 " + r.body.seal_token;
+      }
       await refresh();
     }
 

@@ -55,3 +55,11 @@ python -m pip install -r requirements.txt
 python -m uvicorn app:app --app-dir backend --host 127.0.0.1 --port 10605
 python -m pytest -q
 ```
+
+## 关窗落库口径
+
+关窗正确性口径锁定在 `ops/关窗落库册.md`（甲路径）：`status='已关闭'` 与 `seal_token` 同事务提交，
+提交成功才发回执；提交失败回执不得成功。两人同时关同一窗须占窗锁，后到只记争用。
+
+代码声明的路径与落库册不一致（缺册／被改成乙路径）时，关窗拒写并在审计记「关窗偏了」。
+`Dockerfile` 必须把 `ops/` 一并拷入镜像，否则容器内关窗全部按偏离拒写。

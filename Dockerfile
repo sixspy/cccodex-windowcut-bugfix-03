@@ -9,6 +9,7 @@ COPY backend/ ./backend/
 COPY frontend/ ./frontend/
 COPY fixtures/ ./fixtures/
 COPY tests/ ./tests/
+COPY ops/ ./ops/
 COPY pytest.ini .
 
 RUN mkdir -p /app/data
